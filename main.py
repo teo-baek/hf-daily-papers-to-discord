@@ -1,16 +1,26 @@
 import requests
 from datetime import date
 
-# 🔧 본인 Discord Webhook URL 입력
+# 🔧 Discord Webhook URL — 본인 것으로 교체 (이미 연결된 걸 그대로 사용 가능)
 DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1425269624215310407/FlmDiO8nrayDSJWioXCaH6zs73_0V_pPBwkfiiIVfqtY2noEGW-PXD8G9vLkdiu1hp2A"
 
 
 def fetch_papers():
-    """Hugging Face Daily Papers RSS JSON 가져오기"""
-    url = "https://papers.takara.ai/api/feed"
+    """Hugging Face Daily Papers JSON 데이터 가져오기"""
+    url = "https://huggingface.co/papers/api/feed"
+    print(f"📡 Fetching data from: {url}")
     resp = requests.get(url)
     resp.raise_for_status()
-    return resp.json()
+
+    # 응답이 JSON인지 확인
+    try:
+        data = resp.json()
+        print(f"✅ 데이터 수신 완료 ({len(data)}개 논문)")
+        return data
+    except ValueError:
+        print("❌ API 응답이 JSON이 아닙니다. 응답 내용 일부:")
+        print(resp.text[:300])
+        return []
 
 
 def chunk_message(content, limit=1900):
@@ -43,12 +53,22 @@ def send_to_discord(message):
     chunks = chunk_message(message)
     for chunk in chunks:
         payload = {"content": chunk}
-        requests.post(DISCORD_WEBHOOK_URL, json=payload)
+        resp = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+        try:
+            resp.raise_for_status()
+            print(f"📨 전송됨 ({len(chunk)}자)")
+        except requests.exceptions.HTTPError as e:
+            print(f"❌ Discord 전송 실패: {e} ({resp.status_code})")
+            print("응답 내용:", resp.text[:200])
 
 
 def main():
     try:
         papers = fetch_papers()
+        if not papers:
+            print("⚠️ 가져온 논문 데이터가 없습니다. (API 응답 확인 필요)")
+            return
+
         today = date.today().strftime("%Y-%m-%d")
         header = f"📰 **Hugging Face Daily Papers - {today}**\n총 {len(papers)}편\n\n"
         body = summarize_all(papers)
