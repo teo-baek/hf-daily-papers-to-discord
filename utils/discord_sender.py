@@ -3,74 +3,90 @@ import requests
 from dotenv import load_dotenv
 from utils.translator import translate_korean
 
+
 load_dotenv()
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
-
-def chunk_message(content, limit=1900):
-    """디스코드 2000자 제한 대응"""
-    chunks = []
-    while len(content) > limit:
-        split_idx = content[:limit].rfind("\n\n")
-        if split_idx == -1:
-            split_idx = limit
-        chunks.append(content[:split_idx])
-        content = content[split_idx:]
-    chunks.append(content)
-    return chunks
-
-
-def format_paper_entry(paper):
-    """논문 정보 Markdown 포맷 변환"""
-    kr_summary = translate_korean(paper["summary"][:250]) or "(번역 없음)"
-    field_icon = get_field_icon(paper.get("field", "General"))
-
-    entry = (
-        f"# {field_icon} {paper['title']}\n"
-        f"> 👥 {paper['authors']}\n"
-        f"> 📄 {paper['summary']}\n"
-        f"> 📄 {kr_summary}\n"
-        f"> 🔗 <{paper['link']}>\n"
-    )
-    return entry
+# ---------------------------------------
+# ✳️ 분야별 색상 맵
+# ---------------------------------------
+FIELD_COLORS = {
+    "🧠": 0x3498DB,  # LLM / NLP - 파랑
+    "🖼️": 0xE67E22,  # Vision - 주황
+    "🔊": 0x9B59B6,  # Audio - 보라
+    "🤖": 0x1ABC9C,  # Robotics - 청록
+    "🎮": 0xE74C3C,  # Reinforcement Learning - 빨강
+    "🕸️": 0x2ECC71,  # Graph - 초록
+    "📘": 0x95A5A6,  # 기타 - 회색
+}
 
 
-def get_field_icon(field):
-    icons = {
-        "LLM": "🧠",
-        "Vision": "🖼️",
-        "Audio": "🔊",
-        "Robotics": "🤖",
-        "RL": "🎮",
-        "Graph": "🕸️",
-        "General": "📘",
-    }
-    return icons.get(field, "📘")
+def short_summary(text, limit=200):
+    text = text.strip().replace("\n", " ")
+    if len(text) > limit:
+        text = text[:limit].rsplit(".", 1)[0] + "..."
+    return text
 
 
 def send_text_to_discord(
     papers, title="Hugging Face Papers", charts=None, mode="daily"
 ):
-    """텍스트 기반 Discord 전송 (공용)"""
     if not DISCORD_WEBHOOK_URL:
         print("❌ DISCORD_WEBHOOK_URL not set.")
         return
 
-    header = f"📰 **{title}**\n총 {len(papers)}편의 논문 요약입니다.\n\n"
-    body = "\n\n".join(format_paper_entry(p) for p in papers)
-    full_message = header + body
+    # 1️⃣ 헤더 메시지
+    header = {
+        "content": f"📰 **{title}**\n총 {len(papers)}편의 논문 요약입니다.",
+    }
+    requests.post(DISCORD_WEBHOOK_URL, json=header)
 
-    for chunk in chunk_message(full_message):
-        resp = requests.post(DISCORD_WEBHOOK_URL, json={"content": chunk})
+    # 2️⃣ 각 논문을 Embed 카드로 전송
+    for i, paper in enumerate(papers, start=1):
+        field_icon = paper.get("field", "📘")
+        color = FIELD_COLORS.get(field_icon, FIELD_COLORS["📘"])
+        eng_summary = short_summary(paper["summary"])
+        try:
+            kr_summary = translate_korean(eng_summary)
+        except Exception:
+            kr_summary = "(번역 실패)"
+
+        embed = {
+            "title": f"{paper.get('field', '📘')} {paper['title']}",
+            "url": paper["link"],
+            "description": f"📄 {eng_summary}",
+            "color": color,  # 초록색
+            "fields": [
+                {"name": "👥 Authors", "value": paper["authors"], "inline": False},
+                {"name": "🇰🇷 Summary (Korean)", "value": kr_summary, "inline": False},
+            ],
+            "footer": {"text": f"논문 업데이트: {paper.get('updated', 'N/A')}"},
+        }
+
+        resp = requests.post(DISCORD_WEBHOOK_URL, json={"embeds": [embed]})
         if resp.status_code not in (200, 204):
-            print(f"⚠️ Discord 전송 실패 ({resp.status_code}): {resp.text[:200]}")
+            print(f"⚠️ Embed 전송 실패 ({resp.status_code}): {resp.text[:200]}")
         else:
-            print(f"✅ Discord 전송 완료 ({len(chunk)}자)")
+            print(f"✅ [{i}/{len(papers)}] {paper['title'][:40]}...")
 
-    # 주간 / 월간에는 그래프도 첨부
+    # 주간 / 월간 그래프 Embed 카드로 전송
     if charts and mode in ("weekly", "monthly"):
         for name, buf in charts.items():
+            embed = {
+                "title": "📊 Field Distribution",
+                "description": f"{mode.capitalize()} paper distribution by category",
+                "color": 0x7289DA,  # Discord 블루톤
+                "image": {"url": f"attachment://{name}"},
+            }
+
+            files = {"file": (name, buf, "image/png")}
             resp = requests.post(
-                DISCORD_WEBHOOK_URL, files={"file": (name, buf, "image/png")}
+                DISCORD_WEBHOOK_URL, json={"embeds": [embed]}, files=files
             )
-            print(f"📊 그래프 전송 완료: {name} ({resp.status_code})")
+
+            if resp.status_code not in (200, 204):
+                print(
+                    f"⚠️ 그래프 Embed 전송 실패 ({resp.status_code}): {resp.text[:200]}"
+                )
+            else:
+                print(f"📊 그래프 Embed 전송 완료: {name}")

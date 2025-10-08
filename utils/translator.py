@@ -13,6 +13,25 @@ else:
     client = OpenAI(api_key=OPENAI_API_KEY)
 
 
+def summarize_paper(title, summary):
+    """LLM 기반 논문 요약 (핵심 1~2문장으로 압축)"""
+    prompt = f"""
+    Summarize the following research paper in one concise sentence:
+    Title: {title}
+    Abstract: {summary}
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"⚠️ 요약 실패: {e}")
+        return summary[:200] + "..."
+
+
 def translate_korean(text: str, mode: str = "casual") -> str:
     """
     OpenAI 모델을 사용한 자연스러운 한국어 번역.
@@ -42,9 +61,8 @@ def translate_korean(text: str, mode: str = "casual") -> str:
         )
     else:  # casual (default)
         style = (
-            "Translate the following English academic summary into natural, smooth Korean "
-            "that is easy for anyone to understand, even non-technical readers. "
-            "Avoid heavy jargon and math symbols."
+            "Translate and simplify the following AI paper abstract into clear, natural Korean that even a non-technical person (like a high school student) can understand."
+            "Focus on the main idea and purpose, not the math or jargon."
         )
 
     prompt = f"{style}\n\nEnglish text:\n{text.strip()}\n\nKorean translation:"

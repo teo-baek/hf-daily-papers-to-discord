@@ -4,6 +4,10 @@ on:
   schedule:
     # 매일 오전 9시 (한국시간 = UTC+9 → 0시 UTC)
     - cron: "0 0 * * *"
+    # 매주 월요일 오전 9시 (UTC 0시)
+    - cron: "0 0 * * 1"
+    # 매월 1일 오전 9시 (UTC 0시)
+    - cron: "0 0 1 * *"
   workflow_dispatch:   # 수동 실행도 가능
 
 jobs:
@@ -24,10 +28,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run script (auto mode)
+      - name: Determine mode (daily / weekly / monthly)
+        id: mode
+        run: |
+          # 매일 실행: daily
+          MODE="daily"
+          # 월요일이면 weekly
+          if [ "$(date +%u)" -eq 1 ]; then MODE="weekly"; fi
+          # 매월 1일이면 monthly
+          if [ "$(date +%d)" -eq 1 ]; then MODE="monthly"; fi
+          echo "mode=$MODE" >> $GITHUB_OUTPUT
+          echo "🧭 Running in mode: $MODE"
+
+      - name: Run script
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          echo "📅 Running automated Hugging Face Papers workflow..."
-          python main.py
+          echo "🚀 Auto-execution started for ${{ steps.mode.outputs.mode }}"
+          if [ "${{ steps.mode.outputs.mode }}" = "daily" ]; then
+            python main.py
+          elif [ "${{ steps.mode.outputs.mode }}" = "weekly" ]; then
+            python weekly.py
+          else
+            python monthly.py
+          fi
