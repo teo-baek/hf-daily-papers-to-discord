@@ -2,12 +2,12 @@ name: Auto Send Hugging Face Papers to Discord
 
 on:
   schedule:
-    # 매일 오전 9시 (한국시간 = UTC+9 → 0시 UTC)
-    - cron: "0 0 * * *"
-    # 매주 월요일 오전 9시 (UTC 0시)
-    - cron: "0 0 * * 1"
-    # 매월 1일 오전 9시 (UTC 0시)
-    - cron: "0 0 1 * *"
+    # 매일 오전 8시 30분 (한국시간 = UTC+9 → 23:30 UTC)
+    - cron: "30 23 * * *"
+    # 매주 월요일 오전 8시 30분 (UTC 23:30 일요일)
+    - cron: "30 23 * * 0"
+    # 매월 1일 오전 8시 30분 (UTC 23:30 전날)
+    - cron: "30 23 1 * *"
   workflow_dispatch:   # 수동 실행도 가능
 
 jobs:
