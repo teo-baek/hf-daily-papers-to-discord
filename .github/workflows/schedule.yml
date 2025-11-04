@@ -34,9 +34,9 @@ jobs:
           # 매일 실행: daily
           MODE="daily"
           # 월요일이면 weekly
-          if [ "$(date +%u)" -eq 1 ]; then MODE="weekly"; fi
+          # if [ "$(date +%u)" -eq 1 ]; then MODE="weekly"; fi
           # 매월 1일이면 monthly
-          if [ "$(date +%d)" -eq 1 ]; then MODE="monthly"; fi
+          # if [ "$(date +%d)" -eq 1 ]; then MODE="monthly"; fi
           echo "mode=$MODE" >> $GITHUB_OUTPUT
           echo "🧭 Running in mode: $MODE"
 
@@ -48,8 +48,8 @@ jobs:
           echo "🚀 Auto-execution started for ${{ steps.mode.outputs.mode }}"
           if [ "${{ steps.mode.outputs.mode }}" = "daily" ]; then
             python main.py
-          elif [ "${{ steps.mode.outputs.mode }}" = "weekly" ]; then
-            python weekly.py
-          else
-            python monthly.py
+          # elif [ "${{ steps.mode.outputs.mode }}" = "weekly" ]; then
+          #  python weekly.py
+          #else
+          #  python monthly.py
           fi
